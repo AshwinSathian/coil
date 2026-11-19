@@ -1,13 +1,31 @@
-# Coil
+<p align="center">
+  <img src="public/icon.svg" alt="" width="96" height="96">
+</p>
 
-[![CI](https://github.com/AshwinSathian/coil/actions/workflows/ci.yml/badge.svg)](https://github.com/AshwinSathian/coil/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Play](https://img.shields.io/badge/play-coil.ashwinsathian.com-orange.svg)](https://coil.ashwinsathian.com)
-
-Snake for phone, tablet and desktop browsers. Live at **https://coil.ashwinsathian.com**.
+<h1 align="center">Coil</h1>
 
 <p align="center">
-  <img src="docs/desktop.png" alt="Coil on a desktop: the board on the left, the mode list on the right" width="70%">
-  <img src="docs/phone.png" alt="Coil on a phone" width="22%">
+  Snake for phone, tablet and desktop browsers, with replays you can share as links and a leaderboard the client can't lie to.
 </p>
+
+<p align="center">
+  <a href="https://github.com/AshwinSathian/coil/actions/workflows/ci.yml"><img src="https://github.com/AshwinSathian/coil/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/runtime%20deps-0-brightgreen.svg" alt="No runtime dependencies">
+  <img src="https://img.shields.io/badge/page-25%20KB%20gzipped-informational.svg" alt="25 KB gzipped">
+</p>
+
+<p align="center">
+  <a href="https://coil.ashwinsathian.com"><b>Play it at coil.ashwinsathian.com</b></a>
+</p>
+
+<p align="center">
+  <img src="docs/demo.gif" alt="The title-screen autopilot steering the snake to the fruit" width="300">
+  &nbsp;
+  <img src="docs/desktop.png" alt="Coil on a desktop: the board on the left, the mode list on the right" width="520">
+</p>
+
+## Features
 
 - Five modes: Classic (solid walls), Gates (a run of generated rooms), Daily (one generated room per UTC day, with a leaderboard), Blitz (60 seconds, every edge wraps) and Zen (no game over; biting yourself cuts off your tail).
 - Edges are set cell by cell. A solid stretch is a wall. A dashed stretch in the fruit colour is a gate: leave through it and you come back in on the opposite edge, same row or column. Gates and Daily mix both kinds and add walls inside the board.
@@ -15,6 +33,15 @@ Snake for phone, tablet and desktop browsers. Live at **https://coil.ashwinsathi
 - Swipe, arrow keys/WASD/HJKL, or a gamepad. Up to three turns can be queued.
 - Every game can be replayed and shared as a link.
 - Installable, and playable offline after the first visit. A new version reloads in place only when you're on the menu, so it never interrupts a run.
+
+## Controls
+
+| | Touch | Keyboard | Gamepad |
+|---|---|---|---|
+| Turn | Swipe (one gesture can make several turns) | Arrows, WASD or HJKL | D-pad or left stick |
+| Start, play again | Tap the button | Enter, Space or R | A |
+| Pause | Pause button | P, or Space while playing | Start |
+| Back to the menu | Menu button in the pause sheet | Esc | B |
 
 ## How it works
 
@@ -31,9 +58,13 @@ The renderer (`src/render.ts`) draws the frames between sim ticks. The head and 
 
 Sound is synthesised with Web Audio, so the game ships no audio files. The build inlines all HTML, CSS and JS into one `index.html`, about 25 KB gzipped. The only other request is a 28 KB subset of the Anybody variable font.
 
-## Run it
+## Getting started
+
+Needs Node 24 or later (the tests run TypeScript directly).
 
 ```sh
+git clone https://github.com/AshwinSathian/coil.git
+cd coil
 npm install
 npm test                                   # sim, replay codec, autopilot fuzz
 npx wrangler d1 migrations apply coil-db --local
@@ -49,7 +80,22 @@ npx wrangler d1 migrations apply coil-db --remote
 npm run deploy
 ```
 
-Cloudflare Workers serves the static files from the edge. Only `/api/*` runs Worker code, backed by D1 and a rate-limit binding (20 submissions per IP per minute).
+Change `account_id`, the D1 `database_id` and `routes` in `wrangler.jsonc` to deploy to your own account. Cloudflare Workers serves the static files from the edge. Only `/api/*` runs Worker code, backed by D1 and a rate-limit binding (20 submissions per IP per minute).
+
+## Project layout
+
+| Path | What's in it |
+|---|---|
+| `src/sim.ts` | The whole game: integer-only, seeded, no clock |
+| `src/replay.ts` | Replay codec, with a rules-revision byte |
+| `src/autopilot.ts` | Title-screen player, also used for fuzzing |
+| `src/render.ts` | Drawing between sim ticks, both looks |
+| `src/audio.ts`, `src/input.ts`, `src/main.ts`, `src/store.ts`, `src/api.ts` | Sound, input, UI, local storage, leaderboard client |
+| `src/sim.test.ts`, `src/fixtures-v1.json` | Tests, and pinned replays from the first rules revision |
+| `worker/index.ts`, `migrations/` | Leaderboard Worker and its D1 schema |
+| `scripts/demo-replay.ts` | Prints a replay link of an autopilot game |
+| `public/` | Font, icons, manifest, service worker, cache headers |
+| `docs/PLAN.md` | The plan the game was built from |
 
 ## Credits
 
