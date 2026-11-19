@@ -99,12 +99,12 @@ h1, h2, h3, p { margin: 0; }
   #app { --b: min(calc(100vw - 2 * var(--gutter)), calc(100dvh - 300px)); row-gap: 10px; }
 }
 
-.top { grid-area: top; min-height: 56px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.top { grid-area: top; min-height: 56px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
 .top .look-seg { display: none; margin: 0 0 6px; }
 [data-screen='menu'] .top .look-seg { display: inline-flex; }
 [data-screen='over'] .hud { visibility: hidden; }
 [data-screen='replay'] #pauseBtn { display: none; }
-.look-seg button { min-width: 0; font-size: 15px; }
+.look-seg button { min-width: 0; font-size: 13px; padding: 0 10px; }
 .board-wrap { grid-area: board; position: relative; touch-action: none; }
 .panel { grid-area: panel; position: relative; min-width: 0; }
 
@@ -133,7 +133,7 @@ body:not([data-screen='menu']) .hud { display: flex; }
 
 /* ---------- Wordmark: the one loud piece of type ---------- */
 .wordmark {
-  font-size: clamp(48px, min(18vw, 10vh), 84px);
+  font-size: clamp(44px, min(16vw, 9vh), 84px);
   font-weight: 900;
   font-stretch: 150%;
   line-height: 1;
@@ -203,6 +203,8 @@ body:not([data-screen='menu']) .hud { display: flex; }
 .m-glyph { grid-area: glyph; width: 30px; height: 30px; align-self: start; margin-top: 2px; }
 .m-glyph rect { fill: none; stroke: var(--muted); stroke-width: 2.2; }
 .m-glyph .dash { stroke-dasharray: 4 3.4; }
+.m-glyph path.edge { fill: none; stroke: var(--muted); stroke-width: 2.2; }
+.m-glyph path.gate { fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-dasharray: 1.6 2.4; }
 .m-glyph circle { fill: var(--celadon); }
 .m-glyph .rock { fill: var(--muted); }
 .m-name { grid-area: name; font-size: 22px; font-weight: 800; font-stretch: 125%; line-height: 1.1; }

@@ -56,10 +56,11 @@
   <section class="panel" aria-live="polite">
     <div class="p-menu">
       <ul class="modes" id="modes">
-        <li><button class="mode" data-mode="classic"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="3" width="24" height="24" rx="5"/><circle cx="19" cy="11" r="2.6"/></svg><span class="m-name">Classic</span><span class="m-desc">Solid walls. You speed up as you grow.</span><span class="m-best"></span><kbd aria-hidden="true">1</kbd></button></li>
-        <li><button class="mode" data-mode="daily"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="3" width="24" height="24" rx="5"/><path class="rock" d="M8 8h4v4H8zM18 18h4v4h-4z"/><circle cx="19" cy="11" r="2.6"/></svg><span class="m-name">Daily</span><span class="m-desc" id="dailyDesc">Today’s board with rocks, the same for everyone.</span><span class="m-best"></span><kbd aria-hidden="true">2</kbd></button></li>
-        <li><button class="mode" data-mode="blitz"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect class="dash" x="3" y="3" width="24" height="24" rx="5"/><circle cx="19" cy="11" r="2.6"/></svg><span class="m-name">Blitz</span><span class="m-desc">60 seconds on a board that wraps.</span><span class="m-best"></span><kbd aria-hidden="true">3</kbd></button></li>
-        <li><button class="mode" data-mode="zen"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect class="dash" x="3" y="3" width="24" height="24" rx="5"/><circle cx="15" cy="15" r="2.6"/></svg><span class="m-name">Zen</span><span class="m-desc">No game over. Biting yourself costs you your tail.</span><span class="m-best"></span><kbd aria-hidden="true">4</kbd></button></li>
+        <li><button class="mode" data-mode="classic"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="3" width="24" height="24" rx="5"/><circle cx="19" cy="11" r="2.6"/></svg><span class="m-name">Classic</span><span class="m-desc">Solid walls. Speeds up as you grow.</span><span class="m-best"></span><kbd aria-hidden="true">1</kbd></button></li>
+        <li><button class="mode" data-mode="gates"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><path class="edge" d="M3 10V5a2 2 0 0 1 2-2h5M20 3h5a2 2 0 0 1 2 2v5M27 20v5a2 2 0 0 1-2 2h-5M10 27H5a2 2 0 0 1-2-2v-5"/><path class="gate" d="M3 13v4M27 13v4M13 3h4M13 27h4"/><path class="rock" d="M11 11h3v8h-3z"/><circle cx="19" cy="15" r="2.6"/></svg><span class="m-name">Gates</span><span class="m-desc">Walls with gates to the far side.</span><span class="m-best"></span><kbd aria-hidden="true">2</kbd></button></li>
+        <li><button class="mode" data-mode="daily"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="3" width="24" height="24" rx="5"/><path class="rock" d="M8 8h4v4H8zM18 18h4v4h-4z"/><circle cx="19" cy="11" r="2.6"/></svg><span class="m-name">Daily</span><span class="m-desc" id="dailyDesc">Today’s room, the same for everyone.</span><span class="m-best"></span><kbd aria-hidden="true">3</kbd></button></li>
+        <li><button class="mode" data-mode="blitz"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect class="dash" x="3" y="3" width="24" height="24" rx="5"/><circle cx="19" cy="11" r="2.6"/></svg><span class="m-name">Blitz</span><span class="m-desc">60 seconds. Every edge is a gate.</span><span class="m-best"></span><kbd aria-hidden="true">4</kbd></button></li>
+        <li><button class="mode" data-mode="zen"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect class="dash" x="3" y="3" width="24" height="24" rx="5"/><circle cx="15" cy="15" r="2.6"/></svg><span class="m-name">Zen</span><span class="m-desc">No game over. Bites trim your tail.</span><span class="m-best"></span><kbd aria-hidden="true">5</kbd></button></li>
       </ul>
       <nav class="links">
         <button data-open="leaders">Leaderboard</button>
@@ -158,8 +159,11 @@
   <h3>Scoring</h3>
   <p>A fruit is worth 10. Eat the next one within 3.5 seconds to raise the multiplier, up to ×5. The bar under the board shows how long you have.</p>
   <p>Gold stars appear now and then for 50 and vanish when their ring runs out.</p>
-  <h3>The board edge</h3>
-  <p>A solid edge is a wall. A dashed edge wraps you to the other side.</p>
+  <h3>Walls and gates</h3>
+  <p>A solid edge is a wall. A dashed stretch in the fruit colour is a gate: go through it and you come back in on the opposite edge, in the same row or column. The short posts mark where a gate ends.</p>
+  <p>Classic has no gates. Blitz and Zen are all gates. Gates and Daily mix the two and add walls inside the board.</p>
+  <h3>Gates mode</h3>
+  <p>Each room asks for a few fruit. Eat them and the room is cleared: you bank a bonus of 100 times the room number, and a new room is built with fewer gates and more walls. Your snake starts short again in every room.</p>
   <h3>Replays</h3>
   <p>Every game can be replayed. Share replay copies a link that plays the whole run, move for move, for anyone who opens it.</p>
 </dialog>

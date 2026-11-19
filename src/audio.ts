@@ -55,6 +55,12 @@ export const sfx = {
   turn() {
     tone(1800, 0, 0.012, 'square', 0.03);
   },
+  portal() {
+    tone(hz(12), 0, 0.16, 'sine', 0.22, hz(24));
+  },
+  room() {
+    [0, 5, 7, 12, 17, 19, 24].forEach((st, i) => tone(hz(st), i * 0.045, 0.3, 'triangle', 0.3));
+  },
   bite() {
     tone(220, 0, 0.12, 'sawtooth', 0.25, 110);
   },

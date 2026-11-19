@@ -1,12 +1,13 @@
 // Replay codec: a whole game in a few hundred bytes, safe for a URL fragment.
 // Layout: version, mode, seed, endTick, eventCount, then per event varint(tickDelta * 4 + dir). Base64url.
+// The version byte is the rules revision the game was played under, so old links replay old rules.
 
-import { Game, MODES, type Mode } from './sim.ts';
+import { Game, MODES, REV, type Mode } from './sim.ts';
 
-const VERSION = 1;
 export const MAX_TICKS = 200_000;
 
 export interface Replay {
+  rev: number;
   mode: Mode;
   seed: number;
   endTick: number;
@@ -22,7 +23,7 @@ function putVarint(out: number[], v: number) {
 }
 
 export function encode(r: Replay): string {
-  const out: number[] = [VERSION, MODES.indexOf(r.mode)];
+  const out: number[] = [r.rev, MODES.indexOf(r.mode)];
   putVarint(out, r.seed >>> 0);
   putVarint(out, r.endTick);
   putVarint(out, r.log.length / 2);
@@ -56,7 +57,8 @@ export function decode(s: string): Replay {
     }
     throw new Error('bad varint');
   };
-  if (byte() !== VERSION) throw new Error('unknown replay version');
+  const rev = byte();
+  if (rev < 1 || rev > REV) throw new Error('replay is from a newer version of Coil');
   const mode = MODES[byte()];
   if (!mode) throw new Error('unknown mode');
   const seed = varint() >>> 0;
@@ -72,14 +74,14 @@ export function decode(s: string): Replay {
   }
   if (p !== bin.length) throw new Error('trailing bytes');
   if (tick > endTick) throw new Error('event after end');
-  return { mode, seed, endTick, log };
+  return { rev, mode, seed, endTick, log };
 }
 
-export const toReplay = (g: Game): Replay => ({ mode: g.mode, seed: g.seed, endTick: g.tick, log: g.log.slice() });
+export const toReplay = (g: Game): Replay => ({ rev: g.rev, mode: g.mode, seed: g.seed, endTick: g.tick, log: g.log.slice() });
 
 /** Steps a game along a replay. `advance()` runs one tick; returns false once the replay is over. */
 export function player(r: Replay) {
-  const game = new Game(r.mode, r.seed);
+  const game = new Game(r.mode, r.seed, r.rev);
   let i = 0;
   return {
     game,

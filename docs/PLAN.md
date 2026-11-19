@@ -28,6 +28,9 @@ Known ceiling: a verified replay proves the game is legal, not that a human play
 | Daily | solid | Classic rules plus a seeded obstacle layout. Same seed worldwide per UTC day. Global leaderboard, ghost of your best. |
 | Blitz | wrap | 60 seconds, fast, golden fruit more often. Score attack. |
 | Zen | wrap | No death. Biting yourself cuts off the tail. Constant calm speed. |
+| Gates | mixed | Generated rooms: edges are runs of wall or gate, plus inner walls. Clear a room's fruit target for a bonus and a harder room. Added 2026-11-20. |
+
+Daily became a generated room too (rules revision 2). The replay format's first byte records the revision, so revision-1 links still play their original board.
 
 ## Looks
 

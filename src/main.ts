@@ -1,5 +1,5 @@
 import './style.css';
-import { COMBO_WINDOW_MS, Game, MODES, dailySeed, utcDay, type Mode } from './sim.ts';
+import { COMBO_WINDOW_MS, Game, REV, dailySeed, roomBonus, utcDay, type Mode } from './sim.ts';
 import { decode, encode, player, simulate, toReplay, type Replay } from './replay.ts';
 import { think } from './autopilot.ts';
 import { Renderer } from './render.ts';
@@ -9,7 +9,7 @@ import { persist, saved, wipe } from './store.ts';
 import { fetchBoard, submitRun, type Entry } from './api.ts';
 
 type Screen = 'menu' | 'ready' | 'play' | 'pause' | 'over' | 'replay';
-const NAMES: Record<Mode, string> = { classic: 'Classic', daily: 'Daily', blitz: 'Blitz', zen: 'Zen' };
+const NAMES: Record<Mode, string> = { classic: 'Classic', daily: 'Daily', blitz: 'Blitz', zen: 'Zen', gates: 'Gates' };
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('board');
@@ -70,7 +70,8 @@ function startGame(mode: Mode) {
   ghost = null;
   if (mode === 'daily' && saved.settings.ghost && saved.daily?.day === today) {
     try {
-      ghost = player(decode(saved.daily.replay));
+      const r = decode(saved.daily.replay);
+      ghost = r.rev === REV ? player(r) : null; // a run under older rules played a different board
     } catch {
       ghost = null;
     }
@@ -82,9 +83,8 @@ function startGame(mode: Mode) {
   shownScore = -1;
   lastSecond = 0;
   setScreen('ready');
-  $('readyHint').textContent = matchMedia('(pointer: coarse)').matches
-    ? 'Swipe to start. Swipe anywhere to turn.'
-    : 'Press an arrow key to start. Esc pauses.';
+  const how = matchMedia('(pointer: coarse)').matches ? 'Swipe to start. Swipe anywhere to turn.' : 'Press an arrow key to start. Esc pauses.';
+  $('readyHint').textContent = mode === 'gates' ? `Room 1. Eat ${game.roomTarget} fruit to open the next room. ${how}` : how;
   noteEl.textContent = '';
   updateHud();
 }
@@ -108,6 +108,7 @@ function turn(d: number) {
 
 function tickGame() {
   const before = game.score;
+  const from = game.head;
   game.step(queue.length ? queue.shift()! : -1);
   ghost?.advance();
   if (game.ate) {
@@ -117,6 +118,20 @@ function tickGame() {
     buzz(game.ate === 2 ? 25 : 10);
     topCombo = Math.max(topCombo, game.combo + 1);
     if (game.combo > 0) bump();
+  }
+  if (game.ported) {
+    renderer.onPort(game, from);
+    sfx.portal();
+  }
+  if (game.newRoom) {
+    // The next room waits for the player's first turn, like the start of a run.
+    renderer.onRoom();
+    sfx.room();
+    buzz([15, 40, 15]);
+    queue = [];
+    acc = 0;
+    setScreen('ready');
+    $('readyHint').textContent = `Room ${game.room - 1} cleared, +${roomBonus(game.room - 1)}. Room ${game.room} needs ${game.roomTarget} fruit. Turn to go.`;
   }
   if (game.cut) {
     renderer.onBite(game);
@@ -185,7 +200,7 @@ function showOver(isBest: boolean, prevBest: number) {
   if (isBest && g.score > 0) setTimeout(() => sfx.best(), 250);
   fillStats($('overStats'), [
     ['Fruit', String(g.fruit)],
-    ['Length', String(g.len)],
+    g.mode === 'gates' ? ['Room', String(g.room)] : ['Length', String(g.len)],
     ['Time', clock(g.elapsed)],
     ['Top multiplier', topCombo ? `×${topCombo}` : '–'],
   ]);
@@ -247,7 +262,7 @@ function openReplay(r: Replay, name = '') {
   shownScore = -1;
   const final = simulate(r);
   $('replayTitle').textContent = name ? `${name}’s run` : 'Replay';
-  $('replayNote').textContent = `${NAMES[r.mode]}${r.mode === 'daily' ? ` on ${dayLabel(dayOfSeed(r.seed))}` : ''}, ${final.score} points, ${final.len} long.`;
+  $('replayNote').textContent = `${NAMES[r.mode]}${r.mode === 'daily' ? ` on ${dayLabel(dayOfSeed(r.seed))}` : ''}, ${final.score} points, ${final.room ? `reached room ${final.room}` : `${final.len} long`}.`;
   $('playModeBtn').textContent = `Play ${NAMES[r.mode]}`;
   $('replayToggle').textContent = 'Pause';
   setScreen('replay');
@@ -322,6 +337,7 @@ function frame(now: number) {
       while (acc >= g.interval && steps++ < 12) {
         acc -= g.interval;
         const before = g.score;
+        const from = g.head;
         if (!rp.advance()) {
           rpPaused = true;
           $('replayToggle').textContent = 'Watch again';
@@ -330,6 +346,8 @@ function frame(now: number) {
         }
         if (g.ate) renderer.onEat(g, g.score - before);
         if (g.cut) renderer.onBite(g);
+        if (g.ported) renderer.onPort(g, from);
+        if (g.newRoom) renderer.onRoom();
       }
     }
     alpha = !rpPaused && g.alive ? Math.min(1, acc / g.interval) : 1;
@@ -368,6 +386,7 @@ function updateHud(g = screen === 'replay' && rp ? rp.game : game, alpha = 0) {
       noteEl.innerHTML = `<span class="clock${left < 10_000 ? ' low' : ''}">${txt}</span>seconds left`;
     }
   } else if (g.rules.zen) noteEl.textContent = `Your longest snake so far is ${Math.max(g.len, saved.stats.longest)}.`;
+  else if (g.room) noteEl.textContent = `Room ${g.room}: ${g.roomFruit} of ${g.roomTarget} fruit. Clearing it adds ${roomBonus(g.room)}.`;
   else if (ghost) noteEl.textContent = `The faint snake is your best run today, ${saved.daily?.score ?? 0} points.`;
 }
 
@@ -394,6 +413,7 @@ function toMenu() {
   setScreen('menu');
   renderMenu();
   loadToday();
+  dispatchEvent(new Event('coil:menu'));
 }
 
 // Top Daily runs, shown under the menu where there is room (desktop, tablet).
@@ -460,8 +480,9 @@ bindInput(document.body, sink, () => screen === 'ready' || screen === 'play' || 
 
 addEventListener('keydown', (e) => {
   if (screen !== 'menu' || document.querySelector('dialog[open]') || e.metaKey || e.ctrlKey) return;
-  const i = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code);
-  if (i >= 0) startGame(MODES[i]);
+  const i = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code);
+  const btn = document.querySelectorAll<HTMLElement>('.mode')[i];
+  if (btn) startGame(btn.dataset.mode as Mode);
 });
 
 document.addEventListener('click', (e) => {
@@ -729,15 +750,36 @@ function openFromHash() {
   if (!r) return;
   try {
     openReplay(decode(r), (h.get('n') ?? '').slice(0, 16));
-  } catch {
+  } catch (e) {
+    if ((e as Error).message.includes('newer version')) {
+      // This copy of the app is older than the link. Keep the link; the update below reloads onto it.
+      waitingForUpdate = true;
+      toast('Updating Coil to play this replay…');
+      navigator.serviceWorker?.getRegistration().then((reg) => reg?.update());
+      return;
+    }
     toast('This replay link is damaged or incomplete');
     history.replaceState(null, '', location.pathname);
   }
 }
+let waitingForUpdate = false;
 openFromHash();
 addEventListener('hashchange', openFromHash);
 requestAnimationFrame(frame);
 
+// Updates. The service worker serves the cached app at once and refreshes it in the background.
+// When a newer app is ready, reload onto it, but only where that interrupts nothing:
+// the menu, or a replay link this copy is too old to read. Otherwise the next visit gets it.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+  const sw = navigator.serviceWorker;
+  const hadController = !!sw.controller; // false on a first visit: nothing old to replace
+  let pending = false;
+  const reloadWhenIdle = () => {
+    if (screen === 'menu' || waitingForUpdate) location.reload();
+    else pending = true;
+  };
+  sw.addEventListener('controllerchange', () => hadController && reloadWhenIdle());
+  sw.addEventListener('message', (e) => e.data === 'updated' && reloadWhenIdle());
+  addEventListener('coil:menu', () => pending && location.reload());
+  addEventListener('load', () => sw.register('/sw.js'));
 }

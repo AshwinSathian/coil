@@ -5,7 +5,8 @@ export const W = 21;
 export const H = 21;
 export const N = W * H;
 
-export const MODES = ['classic', 'daily', 'blitz', 'zen'] as const;
+// Order is part of the replay format (a mode is stored as its index). Append only.
+export const MODES = ['classic', 'daily', 'blitz', 'zen', 'gates'] as const;
 export type Mode = (typeof MODES)[number];
 
 // 0 up, 1 right, 2 down, 3 left. Opposite direction = d ^ 2.
@@ -16,27 +17,44 @@ const EMPTY = 0;
 const SNAKE = 1;
 const WALL = 2;
 
+/**
+ * How the board is laid out.
+ * walls: every edge is solid. wrap: every edge is a gate.
+ * daily: one generated room per day. rooms: a run of generated rooms (Gates mode).
+ */
+export type Layout = 'walls' | 'wrap' | 'daily' | 'rooms';
+
 export interface Rules {
-  wrap: boolean;
+  layout: Layout;
   zen: boolean;
-  obstacles: boolean;
   timeLimitMs: number; // 0 = none
   goldChance: number; // out of 256, rolled after each fruit
-  interval: (len: number) => number; // ms per tick
+  interval: (len: number, room: number) => number; // ms per tick
 }
 
+const classicPace = (l: number) => Math.max(68, 150 - (l - 3) * 2);
+
 export const RULES: Record<Mode, Rules> = {
-  classic: { wrap: false, zen: false, obstacles: false, timeLimitMs: 0, goldChance: 40, interval: (l) => Math.max(68, 150 - (l - 3) * 2) },
-  daily: { wrap: false, zen: false, obstacles: true, timeLimitMs: 0, goldChance: 40, interval: (l) => Math.max(68, 150 - (l - 3) * 2) },
-  blitz: { wrap: true, zen: false, obstacles: false, timeLimitMs: 60_000, goldChance: 90, interval: (l) => Math.max(58, 96 - (l - 3)) },
-  zen: { wrap: true, zen: true, obstacles: false, timeLimitMs: 0, goldChance: 30, interval: () => 125 },
+  classic: { layout: 'walls', zen: false, timeLimitMs: 0, goldChance: 40, interval: classicPace },
+  daily: { layout: 'daily', zen: false, timeLimitMs: 0, goldChance: 40, interval: classicPace },
+  blitz: { layout: 'wrap', zen: false, timeLimitMs: 60_000, goldChance: 90, interval: (l) => Math.max(58, 96 - (l - 3)) },
+  zen: { layout: 'wrap', zen: true, timeLimitMs: 0, goldChance: 30, interval: () => 125 },
+  gates: { layout: 'rooms', zen: false, timeLimitMs: 0, goldChance: 40, interval: (l, r) => Math.max(70, 142 - (r - 1) * 7 - (l - 3) * 2) },
 };
+
+/** Rules revision. 1: Daily had solid edges and rocks only. 2: gates and generated rooms. */
+export const REV = 2;
+export const DAILY_LEVEL = 3;
+/** Fruit needed to clear room r in Gates mode. */
+export const roomTarget = (r: number) => Math.min(12, 5 + r);
+export const roomBonus = (r: number) => 100 * r;
 
 export const GOLD_TTL = 45; // ticks
 export const COMBO_WINDOW_MS = 3500;
 export const MAX_COMBO = 4; // multiplier = combo + 1
 
 export type Death = 'wall' | 'self' | 'rock' | 'time' | null;
+export type Sides = { rows: Uint8Array; cols: Uint8Array };
 
 export function rng(seed: number) {
   let a = seed >>> 0;
@@ -62,6 +80,9 @@ export class Game {
   readonly body = new Int16Array(N); // ring buffer, tail at `tailIdx`, head at tailIdx + len - 1
   readonly occ = new Uint8Array(N);
   readonly rocks: number[] = [];
+  /** Gates: rowGate[y] lets row y pass through the left and right edges; colGate[x] the top and bottom. */
+  readonly rowGate = new Uint8Array(H);
+  readonly colGate = new Uint8Array(W);
   readonly log: number[] = []; // flat [tick, dir, tick, dir, ...] of direction changes
   private rand: (n: number) => number;
   private tailIdx = 0;
@@ -84,36 +105,64 @@ export class Game {
   vacated = -1;
   ate = 0; // 0 none, 1 fruit, 2 gold
   cut = 0;
+  ported = false; // head went through a gate
+  newRoom = false; // a room was cleared and the next one built
+
+  room = 0; // Gates mode: current room, from 1
+  roomFruit = 0;
 
   readonly mode: Mode;
   readonly seed: number;
+  readonly rev: number;
 
-  constructor(mode: Mode, seed: number) {
+  constructor(mode: Mode, seed: number, rev = REV) {
     this.mode = mode;
     this.seed = seed;
+    this.rev = rev;
     this.rules = RULES[mode];
     this.rand = rng(seed);
-    const y = H >> 1;
-    for (let x = 7; x <= 9; x++) this.pushHead(y * W + x);
-    if (this.rules.obstacles) this.placeRocks();
+    const layout = this.rules.layout;
+    if (layout === 'wrap') {
+      this.rowGate.fill(1);
+      this.colGate.fill(1);
+    }
+    this.spawn();
+    if (layout === 'daily') {
+      if (rev === 1) this.placeRocks();
+      else this.buildRoom(DAILY_LEVEL);
+    } else if (layout === 'rooms') {
+      this.room = 1;
+      this.buildRoom(1);
+    }
     this.food = this.freeCell();
   }
+
+  private spawn() {
+    const y = H >> 1;
+    this.dir = 1;
+    for (let x = 7; x <= 9; x++) this.pushHead(y * W + x);
+  }
+
+  get roomTarget() { return roomTarget(this.room); }
 
   get head() { return this.body[(this.tailIdx + this.len - 1) % N]; }
   get tail() { return this.body[this.tailIdx]; }
   /** i = 0 is the tail, len - 1 is the head */
   seg(i: number) { return this.body[(this.tailIdx + i) % N]; }
-  get interval() { return this.rules.interval(this.len); }
+  get interval() { return this.rules.interval(this.len, this.room); }
   get timeLeft() { return this.rules.timeLimitMs ? Math.max(0, this.rules.timeLimitMs - this.elapsed) : Infinity; }
 
-  /** Neighbour of `c` in direction `d`, or -1 off the board. */
+  /** Neighbour of `c` in direction `d`: through a gate if the edge has one there, -1 into a wall. */
   next(c: number, d: number) {
     let x = (c % W) + DX[d];
     let y = ((c / W) | 0) + DY[d];
-    if (this.rules.wrap) {
+    if (x < 0 || x >= W) {
+      if (!this.rowGate[y]) return -1;
       x = (x + W) % W;
+    } else if (y < 0 || y >= H) {
+      if (!this.colGate[x]) return -1;
       y = (y + H) % H;
-    } else if (x < 0 || y < 0 || x >= W || y >= H) return -1;
+    }
     return y * W + x;
   }
 
@@ -130,6 +179,8 @@ export class Game {
     this.vacated = -1;
     this.ate = 0;
     this.cut = 0;
+    this.ported = false;
+    this.newRoom = false;
     if (!this.alive) return;
     if (input >= 0 && input !== this.dir && input !== (this.dir ^ 2)) {
       this.dir = input;
@@ -161,6 +212,8 @@ export class Game {
       this.tailIdx = (this.tailIdx + 1) % N;
       this.len--;
     }
+    const h = this.head;
+    this.ported = Math.abs((n % W) - (h % W)) > 1 || Math.abs(((n / W) | 0) - ((h / W) | 0)) > 1;
     this.pushHead(n);
 
     if (this.gold >= 0 && --this.goldTtl <= 0 && n !== this.gold) this.gold = -1;
@@ -182,6 +235,7 @@ export class Game {
       return;
     }
     this.fruit++;
+    if (this.room && ++this.roomFruit >= this.roomTarget) return this.nextRoom();
     this.food = this.freeCell();
     if (this.food < 0) {
       this.won = true;
@@ -192,6 +246,51 @@ export class Game {
       this.gold = this.freeCell();
       this.goldTtl = GOLD_TTL;
     }
+  }
+
+  /** Gates mode: bank the room bonus, then rebuild the board around a fresh snake. */
+  private nextRoom() {
+    this.score += roomBonus(this.room);
+    this.room++;
+    this.roomFruit = 0;
+    this.occ.fill(EMPTY);
+    this.rocks.length = 0;
+    this.tailIdx = 0;
+    this.len = 0;
+    this.grow = 0;
+    this.combo = 0;
+    this.gold = -1;
+    this.vacated = -1;
+    this.newRoom = true;
+    this.spawn();
+    this.buildRoom(this.room);
+    this.food = this.freeCell();
+  }
+
+  /**
+   * A generated room. Edges are cut into mirrored runs, each a wall or a gate; the higher
+   * the level, the fewer gates and the more and longer the inner walls.
+   */
+  private buildRoom(level: number) {
+    const open = Math.max(30, 82 - level * 9); // chance a run is a gate, out of 100
+    this.edgeRuns(this.rowGate, open);
+    this.edgeRuns(this.colGate, open);
+    const pieces = Math.min(9, 2 + level + this.rand(2));
+    this.placeWalls(pieces, 2 + Math.min(level, 5));
+  }
+
+  private edgeRuns(gate: Uint8Array, open: number) {
+    const n = gate.length;
+    const mid = n >> 1;
+    let any = false;
+    for (let i = 0; i <= mid; ) {
+      const run = 2 + this.rand(3);
+      const isGate = this.rand(100) < open ? 1 : 0;
+      any ||= isGate === 1;
+      for (let k = i; k < i + run && k <= mid; k++) gate[k] = gate[n - 1 - k] = isGate;
+      i += run;
+    }
+    if (!any) gate[mid] = gate[mid - 1] = gate[mid + 1] = 1; // every edge pair gets at least one way through
   }
 
   private die(why: Death) {
@@ -215,13 +314,17 @@ export class Game {
     return -1;
   }
 
-  // Mirrored short walls, four-way symmetric. Keeps the centre cross open and the board connected.
+  // Rev-1 Daily rocks. Kept exactly as shipped so old Daily replays still play back.
   private placeRocks() {
+    this.placeWalls(4 + this.rand(3), 4);
+  }
+
+  // Mirrored straight walls, four-way symmetric. Keeps the centre open and the board connected.
+  private placeWalls(pieces: number, maxLen: number) {
     const cx = W >> 1;
     const cy = H >> 1;
-    const pieces = 4 + this.rand(3);
     for (let p = 0; p < pieces; p++) {
-      const len = 2 + this.rand(3);
+      const len = 2 + this.rand(maxLen - 1);
       const vertical = this.rand(2) === 1;
       const x0 = 1 + this.rand(cx - 1);
       const y0 = 1 + this.rand(cy - 1);

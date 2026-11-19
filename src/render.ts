@@ -127,6 +127,7 @@ export class Renderer {
   private popups: Popup[] = [];
   private bulges: number[] = []; // ticks at which fruit was swallowed
   private shakeUntil = 0;
+  private flashUntil = 0;
   private last = 0;
   private bgKey = '';
   private xs = new Float32Array(W * H + 2);
@@ -160,7 +161,7 @@ export class Renderer {
   }
 
   private drawBackground(g: Game) {
-    const key = `${this.size}|${this.theme}|${this.look}|${g.rules.wrap}|${g.rocks.join(',')}`;
+    const key = `${this.size}|${this.theme}|${this.look}|${g.rowGate.join('')}|${g.colGate.join('')}|${g.rocks.join(',')}`;
     if (key === this.bgKey) return;
     this.bgKey = key;
     const b = this.bg;
@@ -172,16 +173,9 @@ export class Renderer {
     if (this.look === 'modern') return this.modernBackground(x, g);
     x.fillStyle = this.pal.alt;
     const d = Math.max(1, Math.round(c * 0.07));
-    for (let i = 1; i < W; i++) for (let j = 1; j < H; j++) x.fillRect(Math.round(i * c - d / 2), Math.round(j * c - d / 2), d, d);
-    // The rim says the rule: solid where walls kill, broken where the board wraps.
-    x.strokeStyle = this.pal.rim;
-    x.lineWidth = Math.max(1.5, c * 0.09);
-    if (g.rules.wrap) x.setLineDash([c * 0.5, c * 0.5]);
-    const lw = x.lineWidth;
-    x.beginPath();
-    x.roundRect(lw / 2, lw / 2, this.size - lw, this.size - lw, this.cornerPx());
-    x.stroke();
-    x.setLineDash([]);
+    for (let i = 1; i < W; i++) for (let j = 1; j < H; j++) if (!this.nearWall(g, i, j)) x.fillRect(Math.round(i * c - d / 2), Math.round(j * c - d / 2), d, d);
+    this.drawEdges(x, g, Math.max(1.5, c * 0.09), [c * 0.5, c * 0.5]);
+    this.bridgeRocks(x, g, c * 0.06);
     for (const r of g.rocks) {
       const rx = (r % W) * c;
       const ry = ((r / W) | 0) * c;
@@ -190,6 +184,95 @@ export class Renderer {
       x.fillRect(rx + inset, ry + inset, c - inset * 2, c - inset * 2);
       x.fillStyle = this.pal.rockTop;
       x.fillRect(rx + inset, ry + inset, c - inset * 2, (c - inset * 2) * 0.72);
+    }
+  }
+
+  /**
+   * The rim says the rule, cell by cell: a solid neutral line is wall, a dashed stretch in the
+   * fruit colour is a gate
+   * (leave there and you come back in on the opposite edge). Gate ends get a short post.
+   */
+  private drawEdges(x: CanvasRenderingContext2D, g: Game, lw: number, dash: number[]) {
+    const c = this.cell;
+    const S = this.size;
+    x.strokeStyle = this.pal.rim;
+    x.lineWidth = lw;
+    const rows = g.rowGate;
+    const cols = g.colGate;
+    const all = (a: Uint8Array, v: number) => a.every((k) => k === v);
+    // Uniform boards keep the rounded rim.
+    if ((all(rows, 0) && all(cols, 0)) || (all(rows, 1) && all(cols, 1))) {
+      if (rows[0]) {
+        x.setLineDash(dash);
+        x.strokeStyle = this.pal.fruit;
+      }
+      x.beginPath();
+      x.roundRect(lw / 2, lw / 2, S - lw, S - lw, this.cornerPx());
+      x.stroke();
+      x.setLineDash([]);
+      return;
+    }
+    const h = lw / 2;
+    // side: [gates, fixed coordinate, horizontal?]
+    const sides: [Uint8Array, number, boolean][] = [[cols, h, true], [cols, S - h, true], [rows, h, false], [rows, S - h, false]];
+    for (const [gates, fixed, horizontal] of sides) {
+      for (let i = 0; i < gates.length; ) {
+        let j = i;
+        while (j < gates.length && gates[j] === gates[i]) j++;
+        const a = i * c;
+        const b = j * c;
+        x.setLineDash(gates[i] ? dash : []);
+        x.strokeStyle = gates[i] ? this.pal.fruit : this.pal.rim;
+        x.beginPath();
+        if (horizontal) {
+          x.moveTo(a, fixed);
+          x.lineTo(b, fixed);
+        } else {
+          x.moveTo(fixed, a);
+          x.lineTo(fixed, b);
+        }
+        x.stroke();
+        x.setLineDash([]);
+        x.strokeStyle = this.pal.rim;
+        // Posts where a gate meets a wall.
+        if (gates[i]) {
+          const post = c * 0.42;
+          const dir = fixed < S / 2 ? 1 : -1;
+          x.lineWidth = lw * 1.6;
+          x.beginPath();
+          for (const p of [a, b]) {
+            if (p <= 0 || p >= S) continue;
+            if (horizontal) {
+              x.moveTo(p, fixed - h * dir);
+              x.lineTo(p, fixed + post * dir);
+            } else {
+              x.moveTo(fixed - h * dir, p);
+              x.lineTo(fixed + post * dir, p);
+            }
+          }
+          x.stroke();
+          x.lineWidth = lw;
+        }
+        i = j;
+      }
+    }
+  }
+
+  /** Grid point (i, j) touches a wall cell, so its dot would show through the wall's joints. */
+  private nearWall(g: Game, i: number, j: number) {
+    const o = g.occ;
+    return o[(j - 1) * W + i - 1] === 2 || o[(j - 1) * W + i] === 2 || o[j * W + i - 1] === 2 || o[j * W + i] === 2;
+  }
+
+  /** Fills the gap between neighbouring wall cells so a run of them reads as one wall. */
+  private bridgeRocks(x: CanvasRenderingContext2D, g: Game, inset: number) {
+    const c = this.cell;
+    x.fillStyle = this.pal.rock;
+    for (const r of g.rocks) {
+      const rx = (r % W) * c;
+      const ry = ((r / W) | 0) * c;
+      if (r % W < W - 1 && g.occ[r + 1] === 2) x.fillRect(rx + c / 2, ry + inset, c, c - inset * 2);
+      if (r + W < W * H && g.occ[r + W] === 2) x.fillRect(rx + inset, ry + c / 2, c - inset * 2, c);
     }
   }
 
@@ -204,19 +287,14 @@ export class Renderer {
     x.fillStyle = this.pal.alt;
     const r = Math.max(0.7, c * 0.04);
     for (let i = 1; i < W; i++) for (let j = 1; j < H; j++) {
+      if (this.nearWall(g, i, j)) continue;
       x.beginPath();
       x.arc(i * c, j * c, r, 0, 7);
       x.fill();
     }
-    // Walls get a solid edge, a wrapping board a dashed one.
-    x.strokeStyle = this.pal.rim;
-    x.lineWidth = Math.max(2, c * 0.06);
-    if (g.rules.wrap) x.setLineDash([c * 0.3, c * 0.45]);
-    x.beginPath();
-    x.roundRect(0, 0, this.size, this.size, this.cornerPx());
-    x.stroke();
-    x.setLineDash([]);
+    this.drawEdges(x, g, Math.max(2, c * 0.06), [c * 0.3, c * 0.45]);
     x.fillStyle = this.pal.rock;
+    this.bridgeRocks(x, g, c * 0.1);
     for (const k of g.rocks) {
       x.beginPath();
       x.roundRect((k % W) * c + c * 0.1, ((k / W) | 0) * c + c * 0.1, c * 0.8, c * 0.8, c * 0.28);
@@ -233,6 +311,17 @@ export class Renderer {
     const color = g.ate === 2 ? this.pal.gold : this.pal.fruit;
     this.burst(x, y, color, g.ate === 2 ? 22 : 12);
     if (points) this.popups.push({ x, y, text: `+${points}`, life: 1 });
+  }
+  /** Head went through a gate: a ring where it left and where it came in. */
+  onPort(g: Game, from: number) {
+    const h = g.head;
+    this.burst((h % W) + 0.5, ((h / W) | 0) + 0.5, this.pal.fruit, 8);
+    if (from >= 0) this.burst((from % W) + 0.5, ((from / W) | 0) + 0.5, this.pal.fruit, 6);
+  }
+  onRoom() {
+    this.reset();
+    this.bgKey = '';
+    if (!this.reducedMotion) this.flashUntil = performance.now() + 420;
   }
   onBite(g: Game) {
     const h = g.head;
@@ -283,6 +372,13 @@ export class Renderer {
     this.drawCrash(g);
     this.drawEffects(dt);
     ctx.restore();
+    // New room: a quick wash of the fruit colour fading out.
+    if (now < this.flashUntil) {
+      ctx.globalAlpha = ((this.flashUntil - now) / 420) * 0.35;
+      ctx.fillStyle = this.pal.fruit;
+      ctx.fillRect(0, 0, this.size, this.size);
+      ctx.globalAlpha = 1;
+    }
   }
 
   private drawFruit(cell: number, now: number, gold: boolean, ttl: number) {

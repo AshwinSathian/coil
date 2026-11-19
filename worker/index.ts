@@ -2,7 +2,7 @@
 // The client never sends a score: the Worker replays the submitted inputs through the same
 // sim.ts the browser runs and stores the score that falls out.
 
-import { dailySeed, utcDay } from '../src/sim.ts';
+import { REV, dailySeed, utcDay } from '../src/sim.ts';
 import { decode, simulate } from '../src/replay.ts';
 
 interface Env {
@@ -57,6 +57,7 @@ async function submit(req: Request, env: Env) {
     return fail(`Replay rejected: ${(e as Error).message}`);
   }
   if (replay.mode !== 'daily') return fail('Only Daily runs go on the leaderboard');
+  if (replay.rev !== REV) return fail('This run was played under older rules. Play today’s Daily again');
   // Accept today's board, and yesterday's for a run that finished just after midnight UTC.
   const now = Date.now();
   const day = [utcDay(now), utcDay(now - 864e5)].find((d) => dailySeed(d) === replay.seed);

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Game, MODES, N, dailySeed, type Mode } from './sim.ts';
+import { readFileSync } from 'node:fs';
+import { Game, H, MODES, N, W, dailySeed, roomTarget, type Mode } from './sim.ts';
 import { decode, encode, simulate, toReplay } from './replay.ts';
 import { think } from './autopilot.ts';
 
@@ -104,7 +105,73 @@ test('reversing is ignored', () => {
 });
 
 test('decode rejects junk', () => {
-  for (const s of ['', '!!!!', 'AAAA', encode({ mode: 'classic', seed: 1, endTick: 5, log: [9, 1] })]) {
+  for (const s of ['', '!!!!', 'AAAA', encode({ rev: 2, mode: 'classic', seed: 1, endTick: 5, log: [9, 1] }), encode({ rev: 9, mode: 'classic', seed: 1, endTick: 5, log: [] })]) {
     assert.throws(() => decode(s));
   }
+});
+
+test('replays recorded under rules rev 1 still play back exactly', () => {
+  // Captured before gates existed, one per mode at the time (classic, daily, blitz, zen).
+  const fixtures: [string, number, number][] = JSON.parse(readFileSync(new URL('./fixtures-v1.json', import.meta.url), 'utf8'));
+  for (const [code, score, tick] of fixtures) {
+    const r = decode(code);
+    assert.equal(r.rev, 1);
+    const g = simulate(r);
+    assert.equal(g.score, score, r.mode);
+    assert.equal(g.tick, tick, r.mode);
+  }
+});
+
+test('a gate sends you out the opposite edge, same row or column; a wall stops you', () => {
+  const g = new Game('classic', 1);
+  const bottom = (H - 1) * W + 4;
+  assert.equal(g.next(bottom, 2), -1, 'solid bottom edge');
+  g.colGate[4] = 1;
+  assert.equal(g.next(bottom, 2), 4, 'bottom gate leads to the top of column 4');
+  g.rowGate[3] = 1;
+  assert.equal(g.next(3 * W, 3), 3 * W + W - 1, 'left gate leads to the right end of row 3');
+  assert.equal(g.next(5 * W, 3), -1, 'row 5 has no gate');
+});
+
+test('gate rooms: mirrored edges, at least one gate per axis, connected, and they advance', () => {
+  let maxRoom = 0;
+  for (let seed = 1; seed <= 12; seed++) {
+    const g = new Game('gates', seed * 104729);
+    for (let y = 0; y < H; y++) assert.equal(g.rowGate[y], g.rowGate[H - 1 - y]);
+    assert.ok(g.rowGate.some(Boolean) && g.colGate.some(Boolean));
+    let rooms = 0;
+    while (g.alive && g.tick < 6000) {
+      g.step(think(g));
+      checkInvariants(g);
+      if (g.newRoom) {
+        rooms++;
+        assert.equal(g.len, 3, 'fresh snake each room');
+        assert.equal(g.roomFruit, 0);
+      }
+    }
+    assert.equal(g.room, rooms + 1);
+    maxRoom = Math.max(maxRoom, g.room);
+    if (g.room > 1) assert.ok(g.score >= 100 + roomTarget(1) * 10);
+  }
+  assert.ok(maxRoom >= 3, `autopilot reached room ${maxRoom}`);
+});
+
+test('the autopilot uses gates', () => {
+  let ported = 0;
+  for (let seed = 1; seed <= 5 && !ported; seed++) {
+    const g = new Game('blitz', seed);
+    while (g.alive && !ported) {
+      g.step(think(g));
+      if (g.ported) ported++;
+    }
+  }
+  assert.ok(ported > 0);
+});
+
+test('daily rev 2 is a generated room with gates and inner walls', () => {
+  const g = new Game('daily', dailySeed('2026-11-21'));
+  assert.ok(g.rocks.length >= 8);
+  assert.ok(g.rowGate.some(Boolean) || g.colGate.some(Boolean));
+  const old = new Game('daily', dailySeed('2026-11-21'), 1);
+  assert.ok(!old.rowGate.some(Boolean) && !old.colGate.some(Boolean), 'rev 1 daily keeps solid edges');
 });
