@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Coil</title>
+<meta name="description" content="Snake for phone, tablet and desktop. Four modes, a daily board with a verified leaderboard, and replays you can share as a link.">
+<meta name="theme-color" content="#1c1915" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#dde9e3" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Coil">
+<meta property="og:title" content="Coil">
+<meta property="og:description" content="Snake for phone, tablet and desktop. Daily board, verified leaderboard, replays as links.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://coil.ashwinsathian.com/og.png">
+<meta property="og:url" content="https://coil.ashwinsathian.com/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preload" href="/fonts/anybody.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+  // Resolve the theme before first paint.
+  try { var o = JSON.parse(localStorage.getItem('coil:v1') || '{}').settings || {}, t = o.theme; } catch (e) { o = {}; }
+  document.documentElement.dataset.look = o.look === 'modern' ? 'modern' : 'retro';
+  document.documentElement.dataset.theme = t === 'light' || t === 'dark' ? t : matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+</script>
+</head>
+<body data-screen="menu">
+<main id="app">
+  <header class="top">
+    <h1 class="wordmark" aria-label="Coil">coil</h1>
+    <div class="seg look-seg" role="radiogroup" aria-label="Look">
+      <button role="radio" data-look="retro">Retro</button>
+      <button role="radio" data-look="modern">Modern</button>
+    </div>
+    <div class="hud">
+      <div class="score"><output id="score" aria-live="off">0</output><span id="combo" class="combo"></span></div>
+      <div class="hud-side">
+        <span id="best" class="best"></span>
+        <button id="pauseBtn" class="icon" aria-label="Pause" title="Pause (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="board-wrap">
+    <canvas id="board" role="img" aria-label="Game board"></canvas>
+    <p id="toast" class="toast" role="status"></p>
+  </div>
+
+  <section class="panel" aria-live="polite">
+    <div class="p-menu">
+      <ul class="modes" id="modes">
+        <li><button class="mode" data-mode="classic"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="3" width="24" height="24" rx="5"/><circle cx="19" cy="11" r="2.6"/></svg><span class="m-name">Classic</span><span class="m-desc">Solid walls. You speed up as you grow.</span><span class="m-best"></span><kbd aria-hidden="true">1</kbd></button></li>
+        <li><button class="mode" data-mode="daily"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="3" width="24" height="24" rx="5"/><path class="rock" d="M8 8h4v4H8zM18 18h4v4h-4z"/><circle cx="19" cy="11" r="2.6"/></svg><span class="m-name">Daily</span><span class="m-desc" id="dailyDesc">Today’s board with rocks, the same for everyone.</span><span class="m-best"></span><kbd aria-hidden="true">2</kbd></button></li>
+        <li><button class="mode" data-mode="blitz"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect class="dash" x="3" y="3" width="24" height="24" rx="5"/><circle cx="19" cy="11" r="2.6"/></svg><span class="m-name">Blitz</span><span class="m-desc">60 seconds on a board that wraps.</span><span class="m-best"></span><kbd aria-hidden="true">3</kbd></button></li>
+        <li><button class="mode" data-mode="zen"><svg class="m-glyph" viewBox="0 0 30 30" aria-hidden="true"><rect class="dash" x="3" y="3" width="24" height="24" rx="5"/><circle cx="15" cy="15" r="2.6"/></svg><span class="m-name">Zen</span><span class="m-desc">No game over. Biting yourself costs you your tail.</span><span class="m-best"></span><kbd aria-hidden="true">4</kbd></button></li>
+      </ul>
+      <nav class="links">
+        <button data-open="leaders">Leaderboard</button>
+        <button data-open="help">How to play</button>
+        <button data-open="settings">Settings</button>
+      </nav>
+      <section class="today" id="today" hidden aria-labelledby="todayTitle">
+        <h2 id="todayTitle">Top Daily runs today</h2>
+        <ol class="board-list" id="todayList"></ol>
+      </section>
+    </div>
+
+    <div class="p-play">
+      <p class="ready-hint" id="readyHint">Swipe or press an arrow key to start.</p>
+      <div class="meter" id="meter" aria-hidden="true"><i></i></div>
+      <p class="play-note" id="playNote"></p>
+      <dl class="stats live" id="liveStats"></dl>
+    </div>
+
+    <div class="p-pause">
+      <h2>Paused</h2>
+      <div class="actions">
+        <button class="primary" data-act="resume">Resume</button>
+      </div>
+      <div class="text-actions">
+        <button data-act="restart">Restart</button>
+        <button data-act="menu">Menu</button>
+      </div>
+    </div>
+
+    <div class="p-over">
+      <h2 id="overTitle">Hit the wall</h2>
+      <p class="final"><output id="finalScore">0</output></p>
+      <p class="verdict" id="verdict"></p>
+      <dl class="stats" id="overStats"></dl>
+      <form class="submit" id="submitForm" hidden>
+        <label for="nameInput">Name on today’s leaderboard</label>
+        <div class="row">
+          <input id="nameInput" name="name" maxlength="16" autocomplete="nickname" autocapitalize="words" spellcheck="false" required>
+          <button class="primary" type="submit">Submit</button>
+        </div>
+      </form>
+      <p class="rank" id="rankLine" hidden></p>
+      <div class="actions">
+        <button class="primary" data-act="again">Play again</button>
+      </div>
+      <div class="text-actions">
+        <button data-act="watch">Watch replay</button>
+        <button data-act="share">Share replay</button>
+        <button data-act="menu">Menu</button>
+      </div>
+    </div>
+
+    <div class="p-replay">
+      <h2 id="replayTitle">Replay</h2>
+      <p class="play-note" id="replayNote"></p>
+      <div class="actions">
+        <button class="primary" data-act="replayToggle" id="replayToggle">Pause</button>
+        <div class="seg" role="radiogroup" aria-label="Playback speed" id="speed">
+          <button role="radio" aria-checked="true" data-speed="1">1×</button>
+          <button role="radio" aria-checked="false" data-speed="2">2×</button>
+          <button role="radio" aria-checked="false" data-speed="4">4×</button>
+        </div>
+      </div>
+      <div class="text-actions">
+        <button data-act="replayRestart">From the start</button>
+        <button data-act="playMode" id="playModeBtn">Play Classic</button>
+        <button data-act="menu">Menu</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="leaders" aria-labelledby="leadersTitle">
+  <header>
+    <h2 id="leadersTitle">Daily leaderboard</h2>
+    <button class="icon" data-close aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <div class="day-nav">
+    <button class="icon" id="dayPrev" aria-label="Previous day"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <span id="dayLabel"></span>
+    <button class="icon" id="dayNext" aria-label="Next day"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+  </div>
+  <ol class="board-list" id="boardList"></ol>
+  <p class="fine">The server replays every run with the same game code and scores it itself. Days change at 00:00 UTC.</p>
+</dialog>
+
+<dialog id="help" aria-labelledby="helpTitle">
+  <header>
+    <h2 id="helpTitle">How to play</h2>
+    <button class="icon" data-close aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <h3>Controls</h3>
+  <p>Swipe anywhere on a touch screen. On a keyboard, use the arrow keys, WASD or HJKL, and Esc to pause. A gamepad works with the D-pad or left stick.</p>
+  <p>You can queue up to three turns ahead, so quick double turns land.</p>
+  <h3>Scoring</h3>
+  <p>A fruit is worth 10. Eat the next one within 3.5 seconds to raise the multiplier, up to ×5. The bar under the board shows how long you have.</p>
+  <p>Gold stars appear now and then for 50 and vanish when their ring runs out.</p>
+  <h3>The board edge</h3>
+  <p>A solid edge is a wall. A dashed edge wraps you to the other side.</p>
+  <h3>Replays</h3>
+  <p>Every game can be replayed. Share replay copies a link that plays the whole run, move for move, for anyone who opens it.</p>
+</dialog>
+
+<dialog id="settings" aria-labelledby="settingsTitle">
+  <header>
+    <h2 id="settingsTitle">Settings</h2>
+    <button class="icon" data-close aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <label class="toggle"><span>Sound</span><input type="checkbox" id="optSound" role="switch"></label>
+  <label class="toggle"><span>Vibration</span><input type="checkbox" id="optHaptics" role="switch"></label>
+  <label class="toggle"><span>Show my best run in Daily</span><input type="checkbox" id="optGhost" role="switch"></label>
+  <div class="setting">
+    <span id="lookLabel">Look</span>
+    <div class="seg" role="radiogroup" aria-labelledby="lookLabel">
+      <button role="radio" data-look="retro">Retro</button>
+      <button role="radio" data-look="modern">Modern</button>
+    </div>
+  </div>
+  <div class="setting">
+    <span id="themeLabel">Theme</span>
+    <div class="seg" role="radiogroup" aria-labelledby="themeLabel" id="themeSeg">
+      <button role="radio" data-theme="auto">System</button>
+      <button role="radio" data-theme="dark">Night</button>
+      <button role="radio" data-theme="light">Day</button>
+    </div>
+  </div>
+  <h3>Your numbers</h3>
+  <dl class="stats" id="lifeStats"></dl>
+  <div class="actions">
+    <button id="installBtn" hidden>Install app</button>
+    <button id="wipeBtn" class="danger">Erase scores and settings</button>
+  </div>
+  <p class="fine">Made by Ashwin Sathian. <a href="https://github.com/AshwinSathian/coil" target="_blank" rel="noopener">Source on GitHub</a>. Type is Anybody, under the SIL Open Font License.</p>
+</dialog>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
