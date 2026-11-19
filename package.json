@@ -1,5 +1,28 @@
 {
   "name": "coil",
+  "version": "1.0.0",
+  "description": "Snake for phone, tablet and desktop, with replays as links and a leaderboard that re-simulates every run.",
+  "homepage": "https://coil.ashwinsathian.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AshwinSathian/coil.git"
+  },
+  "bugs": "https://github.com/AshwinSathian/coil/issues",
+  "license": "MIT",
+  "author": "Ashwin Sathian",
+  "keywords": [
+    "snake",
+    "game",
+    "canvas",
+    "typescript",
+    "pwa",
+    "cloudflare-workers",
+    "d1",
+    "deterministic-simulation"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
   "private": true,
   "type": "module",
   "scripts": {

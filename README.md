@@ -1,6 +1,13 @@
 # Coil
 
+[![CI](https://github.com/AshwinSathian/coil/actions/workflows/ci.yml/badge.svg)](https://github.com/AshwinSathian/coil/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Play](https://img.shields.io/badge/play-coil.ashwinsathian.com-orange.svg)](https://coil.ashwinsathian.com)
+
 Snake for phone, tablet and desktop browsers. Live at **https://coil.ashwinsathian.com**.
+
+<p align="center">
+  <img src="docs/desktop.png" alt="Coil on a desktop: the board on the left, the mode list on the right" width="70%">
+  <img src="docs/phone.png" alt="Coil on a phone" width="22%">
+</p>
 
 - Five modes: Classic (solid walls), Gates (a run of generated rooms), Daily (one generated room per UTC day, with a leaderboard), Blitz (60 seconds, every edge wraps) and Zen (no game over; biting yourself cuts off your tail).
 - Edges are set cell by cell. A solid stretch is a wall. A dashed stretch in the fruit colour is a gate: leave through it and you come back in on the opposite edge, same row or column. Gates and Daily mix both kinds and add walls inside the board.
@@ -47,3 +54,7 @@ Cloudflare Workers serves the static files from the edge. Only `/api/*` runs Wor
 ## Credits
 
 Type: [Anybody](https://github.com/Etcetera-Type-Co/Anybody), SIL Open Font License (`public/fonts/OFL.txt`).
+
+## License
+
+Code: [MIT](LICENSE). Font: SIL Open Font License.
