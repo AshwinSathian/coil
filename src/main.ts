@@ -193,7 +193,7 @@ function showOver(isBest: boolean, prevBest: number) {
   const rank = $('rankLine');
   form.hidden = true;
   rank.hidden = true;
-  if (g.mode === 'daily' && g.seed === dailySeed(utcDay())) {
+  if (g.mode === 'daily' && g.seed === dailySeed(utcDay()) && (saved.daily?.score ?? 0) > 0) {
     if (!saved.name) {
       form.hidden = false;
       ($('nameInput') as HTMLInputElement).value = '';
@@ -205,7 +205,7 @@ function showOver(isBest: boolean, prevBest: number) {
 async function submitDaily() {
   const rank = $('rankLine');
   const d = saved.daily;
-  if (!d || d.day !== utcDay() || !saved.name) return;
+  if (!d || d.day !== utcDay() || !saved.name || d.score <= 0) return;
   rank.hidden = false;
   rank.className = 'rank';
   if (d.submitted >= d.score) {

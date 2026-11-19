@@ -64,6 +64,7 @@ async function submit(req: Request, env: Env) {
 
   const game = simulate(replay);
   if (game.alive || game.tick !== replay.endTick) return fail('Replay does not end in a finished game');
+  if (game.score <= 0) return fail('Score at least one fruit to join the leaderboard');
 
   await env.DB.prepare(
     `INSERT INTO runs (day, player, name, score, length, ticks, replay, created) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
